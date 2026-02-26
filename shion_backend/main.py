@@ -17,7 +17,10 @@ from ai_agent import process_chat
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     # Call Gemini via AI Agent
-    reply_text = await process_chat(request.message, request.history)
+    reply_data = await process_chat(request.message, request.history)
+    
+    # extract the spoken text for the history array
+    reply_text = reply_data.get("text", "") if isinstance(reply_data, dict) else str(reply_data)
     
     # Append the model's reply to the history array to send back
     new_history = request.history.copy()
@@ -35,6 +38,6 @@ async def chat_endpoint(request: ChatRequest):
     })
     
     return {
-        "reply": reply_text,
+        "reply": reply_data,
         "history": new_history
     }

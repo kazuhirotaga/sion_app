@@ -5,15 +5,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AiService extends ChangeNotifier {
   static const String _historyKey = 'chat_history';
-  static const String _apiKeyKey = 'gemini_api_key';
+  static const String _backendUrlKey = 'backend_url';
 
   SharedPreferences? _prefs;
   final List<Map<String, dynamic>> _history = [];
 
-  bool get hasApiKey =>
-      _prefs?.getString(_apiKeyKey) != null &&
-      _prefs!.getString(_apiKeyKey)!.isNotEmpty;
-  String? get currentApiKey => _prefs?.getString(_apiKeyKey);
+  bool get hasBackendUrl =>
+      _prefs?.getString(_backendUrlKey) != null &&
+      _prefs!.getString(_backendUrlKey)!.isNotEmpty;
+  String? get currentBackendUrl => _prefs?.getString(_backendUrlKey);
 
   Future<void> initialize() async {
     _prefs = await SharedPreferences.getInstance();
@@ -21,9 +21,9 @@ class AiService extends ChangeNotifier {
     notifyListeners();
   }
 
-  void saveApiKey(String key) {
+  void saveBackendUrl(String url) {
     if (_prefs == null) return;
-    _prefs!.setString(_apiKeyKey, key);
+    _prefs!.setString(_backendUrlKey, url);
     notifyListeners();
   }
 
@@ -71,40 +71,20 @@ class AiService extends ChangeNotifier {
     await _prefs!.setStringList(_historyKey, historyStrList);
   }
 
-  Future<String> sendMessage(String text) async {
-    if (!hasApiKey) return "APIキーが設定されていません。";
-    final apiKey = currentApiKey!;
+  Future<Map<String, dynamic>> sendMessage(String text) async {
+    if (!hasBackendUrl) return {"text": "バックエンドURLが設定されていません。", "emotion": "default", "action": "none"};
+    final backendUrl = currentBackendUrl!;
 
     try {
-      // 1. Add user message to history
-      _history.add({
-        "role": "user",
-        "parts": [
-          {"text": text},
-        ],
-      });
-
-      // 2. Prepare payload
+      // 1. Prepare payload
+      // We do not add the user message to history here. The backend will handle the concatenation.
       final payload = {
-        "systemInstruction": {
-          "role": "system",
-          "parts": [
-            {
-              "text":
-                  "あなたは「シオン」という名前のAIロボットです。短く、親しみやすい日本語で返答してください。音声で読み上げるため、1〜2文程度の簡潔な文章でお願いします。",
-            },
-          ],
-        },
-        "contents": _history,
-        "tools": [
-          {"googleSearch": {}},
-        ],
+        "message": text,
+        "history": _history,
       };
 
-      // 3. Send HTTP request
-      final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey',
-      );
+      // 2. Send HTTP request
+      final url = Uri.parse(backendUrl);
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -113,37 +93,49 @@ class AiService extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
-        final candidates = data['candidates'] as List?;
-        if (candidates != null && candidates.isNotEmpty) {
-          final content = candidates.first['content'];
-          final parts = content['parts'] as List?;
-          if (parts != null && parts.isNotEmpty) {
-            String replyText = parts.first['text'] ?? "返答がありませんでした。";
+        
+        final reply = data['reply'];
+        final String replyText = reply['text'] ?? "返答がありませんでした。";
+        final String emotion = reply['emotion'] ?? "default";
+        final String action = reply['action'] ?? "none";
 
-            // Add model response to history
+        // Update local history entirely from backend's response if provided
+        if (data.containsKey('history')) {
+          _history.clear();
+          List<dynamic> newHistory = data['history'];
+          for (var h in newHistory) {
+            _history.add(h as Map<String, dynamic>);
+          }
+        } else {
+             // Fallback history update if backend returns only reply
+            _history.add({
+              "role": "user",
+              "parts": [
+                {"text": text},
+              ],
+            });
             _history.add({
               "role": "model",
               "parts": [
                 {"text": replyText},
               ],
             });
-            await _saveHistory();
-
-            return replyText;
-          }
         }
-        return "返答がありませんでした。";
+
+        await _saveHistory();
+
+        return {
+          "text": replyText,
+          "emotion": emotion,
+          "action": action
+        };
       } else {
         debugPrint("API Error: ${response.statusCode} - ${response.body}");
-        _history.removeLast(); // Remove the user message if it failed
-        return "通信エラーが発生しました(コード${response.statusCode})。";
+        return {"text": "通信エラーが発生しました(コード${response.statusCode})。", "emotion": "default", "action": "none"};
       }
     } catch (e) {
       debugPrint(e.toString());
-      if (_history.isNotEmpty && _history.last['role'] == 'user') {
-        _history.removeLast();
-      }
-      return "アプリ内部エラーが発生しました。";
+      return {"text": "アプリ内部エラーが発生しました。", "emotion": "default", "action": "none"};
     }
   }
 

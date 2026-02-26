@@ -106,9 +106,27 @@ class _EyesScreenState extends State<EyesScreen> with TickerProviderStateMixin {
 
           setState(() {
             _isProcessingAi = false;
+
+            // アクションに基づく簡易的な目の動き
+            final String action = response['action'] as String? ?? 'none';
+            if (action == 'nod') {
+              _lookY = 0.5; // 下を見る
+            } else if (action == 'shake') {
+              _lookX = 0.5; // 横を見る
+            } else if (action == 'tilt') {
+              _lookX = -0.3;
+              _lookY = -0.3;
+            } else {
+              _lookX = 0.0;
+              _lookY = 0.0;
+            }
           });
 
-          await voiceService.speak(response);
+          // 発話
+          final String replyText = response['text'] as String? ?? "";
+          if (replyText.isNotEmpty) {
+            await voiceService.speak(replyText);
+          }
         },
       );
     }

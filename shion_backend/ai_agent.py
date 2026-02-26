@@ -17,6 +17,7 @@ SYSTEM_INSTRUCTION = """
 あなたは「シオン」という名前のAIロボットです。
 短く、親しみやすい日本語で返答してください。音声で読み上げるため、1〜2文程度の簡潔な文章でお願いします。
 また、利用可能なツール（検索やMCP機能）を積極的に使ってユーザーの質問に答えてください。
+返答は必ずJSON形式で、発話内容(text)、感情(emotion)、動作(action)を含めてください。
 """
 
 async def process_chat(message: str, history: list) -> str:
@@ -88,10 +89,23 @@ async def process_chat(message: str, history: list) -> str:
                 else:
                     gemini_tools = [types.Tool(google_search={})]
                 
+                # Define response schema for structure output
+                response_schema = types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "text": types.Schema(type=types.Type.STRING, description="ユーザーに話しかける言葉"),
+                        "emotion": types.Schema(type=types.Type.STRING, description="joy, anger, surprise, thought, default 等の感情ステータス"),
+                        "action": types.Schema(type=types.Type.STRING, description="nod(頷く), tilt(首をかしげる), shake(嫌々), none などのアクション動作")
+                    },
+                    required=["text", "emotion", "action"]
+                )
+
                 config = types.GenerateContentConfig(
                     system_instruction=SYSTEM_INSTRUCTION,
                     tools=gemini_tools,
                     temperature=0.7,
+                    response_mime_type="application/json",
+                    response_schema=response_schema
                 )
 
                 # 3. First Call to Gemini
@@ -135,15 +149,19 @@ async def process_chat(message: str, history: list) -> str:
                 
                 # Final response extraction
                 if response.text:
-                    return response.text
+                    try:
+                        # try to parse as JSON first (should be JSON due to response_schema)
+                        return json.loads(response.text)
+                    except json.JSONDecodeError:
+                        return {"text": response.text, "emotion": "default", "action": "none"}
                 else:
-                    return "返答がありませんでした。"
+                    return {"text": "返答がありませんでした。", "emotion": "default", "action": "none"}
 
     except Exception as e:
         import traceback
         err_str = traceback.format_exc()
         print(f"Agent Error: {e}\n{err_str}")
-        return "通信エラーが発生しました。"
+        return {"text": "通信エラーが発生しました。", "emotion": "default", "action": "none"}
 
 # Basic test script if run directly
 if __name__ == "__main__":
@@ -152,6 +170,6 @@ if __name__ == "__main__":
         print("Reply:", reply)
         
         reply2 = await process_chat("最新のAIニュースを教えて", [])
-        print("Reply 2:", reply2)
+        print("Reply 2:", json.dumps(reply2, ensure_ascii=False, indent=2))
         
     asyncio.run(run_test())

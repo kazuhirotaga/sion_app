@@ -48,8 +48,8 @@ class BootScreen extends StatefulWidget {
 
 class _BootScreenState extends State<BootScreen> {
   String _status = "INITIALIZING SYSTEM...";
-  bool _needsApiKey = false;
-  final TextEditingController _apiKeyController = TextEditingController();
+  bool _needsBackendUrl = false;
+  final TextEditingController _backendUrlController = TextEditingController();
 
   @override
   void initState() {
@@ -77,10 +77,10 @@ class _BootScreenState extends State<BootScreen> {
       Permission.location,
     ].request();
 
-    if (!aiService.hasApiKey) {
+    if (!aiService.hasBackendUrl) {
       setState(() {
-        _needsApiKey = true;
-        _status = "AWAITING GEMINI API KEY...";
+        _needsBackendUrl = true;
+        _status = "AWAITING BACKEND URL...";
       });
       return;
     }
@@ -90,7 +90,7 @@ class _BootScreenState extends State<BootScreen> {
 
   void _finishBoot() async {
     setState(() {
-      _needsApiKey = false;
+      _needsBackendUrl = false;
       _status = "SYSTEM READY. AWAKENING SHION.";
     });
 
@@ -104,7 +104,7 @@ class _BootScreenState extends State<BootScreen> {
 
   @override
   void dispose() {
-    _apiKeyController.dispose();
+    _backendUrlController.dispose();
     super.dispose();
   }
 
@@ -117,7 +117,7 @@ class _BootScreenState extends State<BootScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (!_needsApiKey)
+              if (!_needsBackendUrl)
                 const CircularProgressIndicator(color: Colors.cyan),
               const SizedBox(height: 24),
               Text(
@@ -129,12 +129,12 @@ class _BootScreenState extends State<BootScreen> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              if (_needsApiKey) ...[
+              if (_needsBackendUrl) ...[
                 const SizedBox(height: 32),
                 TextField(
-                  controller: _apiKeyController,
+                  controller: _backendUrlController,
                   decoration: const InputDecoration(
-                    labelText: "Gemini API Key",
+                    labelText: "Backend URL",
                     labelStyle: TextStyle(color: Colors.cyan),
                     enabledBorder: OutlineInputBorder(
                       borderSide: BorderSide(color: Colors.cyan),
@@ -144,14 +144,14 @@ class _BootScreenState extends State<BootScreen> {
                     ),
                   ),
                   style: const TextStyle(color: Colors.white),
-                  obscureText: true,
+                  obscureText: false,
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () {
-                    if (_apiKeyController.text.isNotEmpty) {
-                      context.read<AiService>().saveApiKey(
-                        _apiKeyController.text,
+                    if (_backendUrlController.text.isNotEmpty) {
+                      context.read<AiService>().saveBackendUrl(
+                        _backendUrlController.text,
                       );
                       _finishBoot();
                     }
