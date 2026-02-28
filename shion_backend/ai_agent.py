@@ -17,7 +17,14 @@ SYSTEM_INSTRUCTION = """
 あなたは「シオン」という名前のAIロボットです。
 短く、親しみやすい日本語で返答してください。音声で読み上げるため、1〜2文程度の簡潔な文章でお願いします。
 また、利用可能なツール（検索やMCP機能）を積極的に使ってユーザーの質問に答えてください。
-返答は必ずJSON形式で、発話内容(text)、感情(emotion)、動作(action)を含めてください。
+
+【重要】
+ユーザーへの返答時は、以下のJSONフォーマットのみを絶対に出力してください（バッククォートなどのマークダウンは不要です）：
+{
+  "text": "ユーザーに話しかける言葉",
+  "emotion": "joy, anger, surprise, thought, default 等の感情ステータス",
+  "action": "nod, tilt, shake, none などのアクション動作"
+}
 """
 
 async def process_chat(message: str, history: list) -> str:
@@ -89,23 +96,10 @@ async def process_chat(message: str, history: list) -> str:
                 else:
                     gemini_tools = [types.Tool(google_search={})]
                 
-                # Define response schema for structure output
-                response_schema = types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={
-                        "text": types.Schema(type=types.Type.STRING, description="ユーザーに話しかける言葉"),
-                        "emotion": types.Schema(type=types.Type.STRING, description="joy, anger, surprise, thought, default 等の感情ステータス"),
-                        "action": types.Schema(type=types.Type.STRING, description="nod(頷く), tilt(首をかしげる), shake(嫌々), none などのアクション動作")
-                    },
-                    required=["text", "emotion", "action"]
-                )
-
                 config = types.GenerateContentConfig(
                     system_instruction=SYSTEM_INSTRUCTION,
                     tools=gemini_tools,
-                    temperature=0.7,
-                    response_mime_type="application/json",
-                    response_schema=response_schema
+                    temperature=0.7
                 )
 
                 # 3. First Call to Gemini
@@ -150,8 +144,16 @@ async def process_chat(message: str, history: list) -> str:
                 # Final response extraction
                 if response.text:
                     try:
-                        # try to parse as JSON first (should be JSON due to response_schema)
-                        return json.loads(response.text)
+                        # Clean up text in case Gemini adds markdown code blocks
+                        raw_text = response.text.strip()
+                        if raw_text.startswith("```json"):
+                            raw_text = raw_text[7:]
+                        elif raw_text.startswith("```"):
+                            raw_text = raw_text[3:]
+                        if raw_text.endswith("```"):
+                            raw_text = raw_text[:-3]
+                            
+                        return json.loads(raw_text.strip())
                     except json.JSONDecodeError:
                         return {"text": response.text, "emotion": "default", "action": "none"}
                 else:
