@@ -119,41 +119,50 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         try:
             import wikipedia
             from googlesearch import search
+            import urllib.request
+            import urllib.parse
+            import xml.etree.ElementTree as ET
             
             wikipedia.set_lang("ja")
             results = []
             
-            # 1. Try Google Search first
+            # 1. Try Google News RSS (Extremely reliable for real-time news & general topics)
             try:
-                for idx, url in enumerate(search(query, num=3, stop=3, lang='ja')):
-                    results.append(f"・参考リンク {idx+1}: {url}")
+                rss_url = f"https://news.google.com/rss/search?q={urllib.parse.quote(query)}&hl=ja&gl=JP&ceid=JP:ja"
+                req = urllib.request.Request(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    xml_data = response.read()
+                root = ET.fromstring(xml_data)
+                
+                for item in root.findall('.//item')[:3]:
+                    title = item.find('title').text if item.find('title') is not None else ""
+                    pubDate = item.find('pubDate').text if item.find('pubDate') is not None else ""
+                    results.append(f"・ニュース: {title} ({pubDate})")
             except Exception as e:
                 pass
                 
-            # 2. Add Wikipedia Summary
+            # 2. Try Wikipedia if no news or as supplement
+            if not results:
+                try:
+                    wiki_pages = wikipedia.search(query, results=1)
+                    if wiki_pages:
+                        summary = wikipedia.summary(wiki_pages[0], sentences=2)
+                        results.append(f"・Wikipedia要約: {summary}")
+                except Exception as e:
+                    pass
+            
+            # 3. Add Google Search Links (Gemini can just report these)
             try:
-                wiki_pages = wikipedia.search(query, results=1)
-                if wiki_pages:
-                    summary = wikipedia.summary(wiki_pages[0], sentences=2)
-                    results.append(f"・Wikipedia要約: {summary}")
+                for idx, url in enumerate(search(query, num=2, stop=2, lang='ja')):
+                    results.append(f"・参考リンク {idx+1}: {url}")
             except Exception as e:
                 pass
-            
-            if not results:
-                # If both fail, try DDGS as absolute last resort
-                try:
-                    from duckduckgo_search import DDGS
-                    with DDGS() as ddgs:
-                        for r in ddgs.text(query, region='jp-jp', max_results=2, backend='html'):
-                            results.append(f"・{r['title']}: {r['body']}")
-                except Exception as e:
-                    return [types.TextContent(type="text", text="関連する情報が現在取得できません。")]
             
             if not results:
                 return [types.TextContent(type="text", text="関連する情報が見つかりませんでした。")]
                 
             result_text = "\n".join(results)
-            return [types.TextContent(type="text", text=f"「{query}」の検索結果:\n{result_text}")]
+            return [types.TextContent(type="text", text=f"「{query}」の関連情報:\n{result_text}")]
         except Exception as e:
             return [types.TextContent(type="text", text=f"検索機能エラー: {str(e)}")]
 
