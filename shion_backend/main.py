@@ -17,6 +17,7 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str
     history: list = []
+    image_base64: str | None = None
 
 @app.get("/")
 def read_root():
@@ -27,7 +28,7 @@ from ai_agent import process_chat
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     # Call Gemini via AI Agent
-    reply_data = await process_chat(request.message, request.history)
+    reply_data = await process_chat(request.message, request.history, request.image_base64)
     
     # extract the spoken text for the history array
     reply_text = reply_data.get("text", "") if isinstance(reply_data, dict) else str(reply_data)

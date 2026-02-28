@@ -23,14 +23,18 @@ SYSTEM_INSTRUCTION = """
 {
   "text": "ユーザーに話しかける言葉",
   "emotion": "joy, anger, surprise, thought, default 等の感情ステータス",
-  "action": "nod, tilt, shake, none などのアクション動作"
+  "action": "nod, tilt, shake, capture_image, none などのアクション動作"
 }
+
+※ もしユーザーから「見て」「これ何？」など視覚情報を求められた場合は、画像を取得するために必ず `action` を `"capture_image"` に設定し、「今見ますね！」と返答してください。
 """
 
-async def process_chat(message: str, history: list) -> str:
+async def process_chat(message: str, history: list, image_base64: str = None) -> str:
     """
     Process a chat message using Gemini, integrating with local MCP server.
+    Accepts an optional image_base64 string for multimodal inputs.
     """
+    import base64
     
     # 1. Convert history format
     contents = []
@@ -43,7 +47,19 @@ async def process_chat(message: str, history: list) -> str:
             
         contents.append(types.Content(role=role, parts=[types.Part.from_text(text=text)]))
         
-    contents.append(types.Content(role="user", parts=[types.Part.from_text(text=message)]))
+    user_parts = [types.Part.from_text(text=message)]
+    
+    if image_base64:
+        try:
+            image_bytes = base64.b64decode(image_base64)
+            user_parts.append(
+                types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
+            )
+            print("Successfully attached image to Gemini Request.")
+        except Exception as e:
+            print(f"Failed to decode base64 image: {e}")
+
+    contents.append(types.Content(role="user", parts=user_parts))
 
     # 2. Connect to MCP Server 
     server_params = StdioServerParameters(
