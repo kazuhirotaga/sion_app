@@ -117,19 +117,45 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     elif name == "get_news_or_search":
         query = arguments.get("query", "最新ニュース")
         try:
+            import wikipedia
+            from googlesearch import search
+            
+            wikipedia.set_lang("ja")
             results = []
-            with DDGS() as ddgs:
-                # Search duckduckgo for top 3 results
-                for r in ddgs.text(query, region='jp-jp', safesearch='moderate', max_results=3):
-                    results.append(f"・{r['title']}: {r['body']}")
+            
+            # 1. Try Google Search first
+            try:
+                for idx, url in enumerate(search(query, num=3, stop=3, lang='ja')):
+                    results.append(f"・参考リンク {idx+1}: {url}")
+            except Exception as e:
+                pass
+                
+            # 2. Add Wikipedia Summary
+            try:
+                wiki_pages = wikipedia.search(query, results=1)
+                if wiki_pages:
+                    summary = wikipedia.summary(wiki_pages[0], sentences=2)
+                    results.append(f"・Wikipedia要約: {summary}")
+            except Exception as e:
+                pass
+            
+            if not results:
+                # If both fail, try DDGS as absolute last resort
+                try:
+                    from duckduckgo_search import DDGS
+                    with DDGS() as ddgs:
+                        for r in ddgs.text(query, region='jp-jp', max_results=2, backend='html'):
+                            results.append(f"・{r['title']}: {r['body']}")
+                except Exception as e:
+                    return [types.TextContent(type="text", text="関連する情報が現在取得できません。")]
             
             if not results:
                 return [types.TextContent(type="text", text="関連する情報が見つかりませんでした。")]
-            
+                
             result_text = "\n".join(results)
             return [types.TextContent(type="text", text=f"「{query}」の検索結果:\n{result_text}")]
         except Exception as e:
-            return [types.TextContent(type="text", text=f"検索エラー: {str(e)}")]
+            return [types.TextContent(type="text", text=f"検索機能エラー: {str(e)}")]
 
     elif name == "get_map_location":
         query = arguments.get("query", "")
