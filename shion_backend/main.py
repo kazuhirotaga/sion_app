@@ -28,6 +28,8 @@ async def lifespan(app: FastAPI):
         trigger=IntervalTrigger(minutes=10),
         id="financial_analysis",
         replace_existing=True,
+        misfire_grace_time=300,
+        coalesce=True,
     )
     scheduler.start()
     print("FinancialAnalyst: Scheduler started (every 10 minutes)")
@@ -59,7 +61,10 @@ def read_root():
 
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
-    reply_data = await process_chat(request.message, request.history, request.image_base64)
+    # Run in a separate thread to avoid blocking the event loop (and APScheduler)
+    reply_data = await asyncio.to_thread(
+        lambda: asyncio.run(process_chat(request.message, request.history, request.image_base64))
+    )
     
     reply_text = reply_data.get("text", "") if isinstance(reply_data, dict) else str(reply_data)
     
