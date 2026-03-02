@@ -129,7 +129,7 @@ async def process_chat(message: str, history: list, image_base64: str = None) ->
 
                 # 3. First Call to Gemini
                 response = genai_client.models.generate_content(
-                    model='gemini-3.0-flash',
+                    model='gemini-3-flash-preview',
                     contents=contents,
                     config=config,
                 )
@@ -161,7 +161,7 @@ async def process_chat(message: str, history: list, image_base64: str = None) ->
                     # 5. Call Gemini again with the tool output
                     print("Sending tool results back to Gemini...")
                     response = genai_client.models.generate_content(
-                        model='gemini-3.0-flash',
+                        model='gemini-3-flash-preview',
                         contents=contents,
                         config=config,
                     )

@@ -140,7 +140,7 @@ async def analyze_news(news_items: list[dict]) -> dict:
     
     try:
         response = await genai_client.aio.models.generate_content(
-            model="gemini-3.0-flash",
+            model="gemini-3-flash-preview",
             contents=prompt,
         )
         
@@ -240,7 +240,7 @@ async def run_pdca_check():
     
     try:
         response = await genai_client.aio.models.generate_content(
-            model="gemini-3.0-flash",
+            model="gemini-3-flash-preview",
             contents=prompt,
         )
         
