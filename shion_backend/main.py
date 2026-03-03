@@ -96,3 +96,51 @@ def finance_history(n: int = 10):
     """Return the last N financial analyses."""
     history = get_analysis_history(n)
     return {"status": "ok", "count": len(history), "analyses": history}
+
+class TtsRequest(BaseModel):
+    text: str
+    voice: str = "Aoede"
+
+@app.post("/tts")
+async def tts_endpoint(request: TtsRequest):
+    """Generate speech audio using Gemini TTS and return WAV as base64."""
+    import base64
+    import wave
+    import io
+    from google import genai
+    from google.genai import types
+
+    try:
+        client = genai.Client()
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-preview-tts",
+            contents=request.text,
+            config=types.GenerateContentConfig(
+                response_modalities=["AUDIO"],
+                speech_config=types.SpeechConfig(
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                            voice_name=request.voice,
+                        )
+                    )
+                ),
+            ),
+        )
+
+        pcm_data = response.candidates[0].content.parts[0].inline_data.data
+
+        # Convert PCM to WAV in memory
+        wav_buffer = io.BytesIO()
+        with wave.open(wav_buffer, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(24000)
+            wf.writeframes(pcm_data)
+
+        wav_bytes = wav_buffer.getvalue()
+        audio_base64 = base64.b64encode(wav_bytes).decode("utf-8")
+
+        return {"status": "ok", "audio_base64": audio_base64}
+    except Exception as e:
+        print(f"TTS Error: {e}")
+        return {"status": "error", "error": str(e)}
