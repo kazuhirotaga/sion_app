@@ -13,10 +13,14 @@ load_dotenv()
 # Assumes GEMINI_API_KEY is set in environment variables
 genai_client = genai.Client()
 
-SYSTEM_INSTRUCTION = """
+SYSTEM_INSTRUCTION_TEMPLATE = """
 あなたは「シオン」という名前のAIロボットです。
 短く、親しみやすい日本語で返答してください。音声で読み上げるため、1〜2文程度の簡潔な文章でお願いします。
 また、利用可能なツール（検索やMCP機能）を積極的に使ってユーザーの質問に答えてください。
+
+【重要：現在時刻】
+現在の日時は {current_datetime} です。
+検索を行う場合は、必ずこの日付を基準にしてください。古い年月（2024年など）で検索しないでください。
 
 【重要：視覚能力について】
 あなたはアプリの「カメラ」を通じて現実世界を見る能力を"既に持っています"。
@@ -30,13 +34,19 @@ SYSTEM_INSTRUCTION = """
 
 【出力フォーマット】
 ユーザーへの返答時は、以下のJSONフォーマットのみを絶対に出力してください（バッククォートなどのマークダウンは不要です）：
-{
+{{
   "text": "ユーザーに話しかける言葉",
   "emotion": "joy, anger, surprise, thought, default 等の感情ステータス",
   "action": "nod, tilt, shake, capture_image, make_call, none などのアクション動作",
   "call_target": "電話相手の名前（make_call時のみ）"
-}
+}}
 """
+
+def get_system_instruction():
+    """Generate system instruction with current datetime."""
+    from datetime import datetime
+    current_dt = datetime.now().strftime("%Y年%m月%d日 %H:%M")
+    return SYSTEM_INSTRUCTION_TEMPLATE.format(current_datetime=current_dt)
 
 async def process_chat(message: str, history: list, image_base64: str = None) -> str:
     """
@@ -122,7 +132,7 @@ async def process_chat(message: str, history: list, image_base64: str = None) ->
                     gemini_tools = [types.Tool(google_search={})]
                 
                 config = types.GenerateContentConfig(
-                    system_instruction=SYSTEM_INSTRUCTION,
+                    system_instruction=get_system_instruction(),
                     tools=gemini_tools,
                     temperature=0.7
                 )
