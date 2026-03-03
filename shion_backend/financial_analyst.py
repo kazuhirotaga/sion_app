@@ -85,6 +85,9 @@ def fetch_financial_news() -> list[dict]:
         "米国株 S&P500 ニュース",
         "為替 ドル円 最新",
         "金融政策 日銀 FRB",
+        "決算発表 業績 最新",
+        "適時開示 IR ニュース",
+        "配当 自社株買い 発表",
     ]
     
     all_results = []
