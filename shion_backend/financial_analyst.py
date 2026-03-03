@@ -37,7 +37,7 @@ ANALYSIS_PROMPT = """
 
 以下のJSONフォーマットで出力してください（バッククォートは不要）：
 {{
-  "speech_summary": "ユーザーに読み上げる1〜3文の簡潔な市場サマリー（日本語・敬語）",
+  "speech_summary": "ユーザーに読み上げる1〜3文の簡潔な市場サマリー。おすすめ銘柄も1〜2個言及すること（日本語・敬語）",
   "market_sentiment": "bullish / bearish / neutral",
   "key_sectors": ["注目セクター1", "セクター2"],
   "predictions": [
@@ -45,9 +45,17 @@ ANALYSIS_PROMPT = """
     {{"target": "USD/JPY", "direction": "円安/円高/横ばい", "confidence": 0.6, "reasoning": "理由"}},
     {{"target": "S&P500", "direction": "上昇/下落/横ばい", "confidence": 0.5, "reasoning": "理由"}}
   ],
+  "recommended_stocks": [
+    {{"ticker": "7203", "name": "トヨタ自動車", "market": "JP", "reasoning": "推奨理由"}},
+    {{"ticker": "NVDA", "name": "NVIDIA", "market": "US", "reasoning": "推奨理由"}},
+    {{"ticker": "6758", "name": "ソニーグループ", "market": "JP", "reasoning": "推奨理由"}}
+  ],
   "risk_factors": ["リスク1", "リスク2"],
   "action_advice": "短期的な投資アドバイス1文"
 }}
+
+recommended_stocksには、現在のニュース・市場環境から判断して最も有望な個別銘柄を日本株・米国株合わせて3〜5個推奨してください。
+各銘柄にはティッカーシンボル、企業名、市場（JP/US）、推奨理由を含めてください。
 """
 
 PDCA_PROMPT = """
