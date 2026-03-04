@@ -99,6 +99,26 @@ def fetch_financial_news() -> list[dict]:
         except Exception as e:
             print(f"FinancialAnalyst: Error fetching news for '{query}': {e}")
     
+    
+    # Geopolitical Risk Alert 追加
+    try:
+        import urllib.request
+        import re
+        url = "https://geopolitical-risk-alert.vercel.app/"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        with urllib.request.urlopen(req) as response:
+            html = response.read().decode('utf-8')
+            # 簡易的にHTMLタグを除去してテキスト化
+            text = re.sub('<[^<]+>', ' ', html)
+            text = re.sub(r'\s+', ' ', text).strip()
+            all_results.append({
+                "title": "地政学リスク (GeoRisk Alert)",
+                "body": text[:3000],  # 最初の3000文字を抽出
+                "source": url
+            })
+    except Exception as e:
+        print(f"FinancialAnalyst: Error fetching GeoRisk Alert: {e}")
+        
     print(f"FinancialAnalyst: Fetched {len(all_results)} news items total")
     return all_results
 
