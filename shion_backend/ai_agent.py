@@ -11,7 +11,7 @@ load_dotenv()
 
 # Initialize Gemini Client
 # Assumes GEMINI_API_KEY is set in environment variables
-genai_client = genai.Client()
+genai_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 SYSTEM_INSTRUCTION_TEMPLATE = """
 あなたは「シオン」という名前のAIロボットです。

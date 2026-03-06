@@ -71,20 +71,47 @@ class AiService extends ChangeNotifier {
     await _prefs!.setStringList(_historyKey, historyStrList);
   }
 
-  Future<Map<String, dynamic>> sendMessage(String text) async {
-    if (!hasBackendUrl) return {"text": "バックエンドURLが設定されていません。", "emotion": "default", "action": "none"};
+  Future<Map<String, dynamic>> sendMessage(
+    String text, {
+    String? imageBase64,
+  }) async {
+    if (!hasBackendUrl)
+      return {
+        "text": "バックエンドURLが設定されていません。",
+        "emotion": "default",
+        "action": "none",
+      };
     final backendUrl = currentBackendUrl!;
 
     try {
       // 1. Prepare payload
       // We do not add the user message to history here. The backend will handle the concatenation.
-      final payload = {
-        "message": text,
-        "history": _history,
-      };
+      final payload = {"message": text, "history": _history};
+      if (imageBase64 != null) {
+        payload["image_base64"] = imageBase64;
+      }
 
-      // 2. Send HTTP request
-      final url = Uri.parse(backendUrl);
+      // 2. Build HTTP request URL robustly
+      String targetUrl = backendUrl.trim();
+      if (!targetUrl.startsWith('http')) {
+        targetUrl = 'https://$targetUrl';
+      } else if (targetUrl.startsWith('http://') &&
+          !targetUrl.contains('10.0.2.2') &&
+          !targetUrl.contains('localhost') &&
+          !targetUrl.contains('192.168.')) {
+        // Enforce https for remote urls (like render)
+        targetUrl = targetUrl.replaceFirst('http://', 'https://');
+      }
+
+      if (targetUrl.endsWith('/')) {
+        targetUrl = targetUrl.substring(0, targetUrl.length - 1);
+      }
+      if (!targetUrl.endsWith('/chat')) {
+        targetUrl = '$targetUrl/chat';
+      }
+      final url = Uri.parse(targetUrl);
+      debugPrint("Sending request to: $url");
+
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -93,7 +120,7 @@ class AiService extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
-        
+
         final reply = data['reply'];
         final String replyText = reply['text'] ?? "返答がありませんでした。";
         final String emotion = reply['emotion'] ?? "default";
@@ -107,35 +134,46 @@ class AiService extends ChangeNotifier {
             _history.add(h as Map<String, dynamic>);
           }
         } else {
-             // Fallback history update if backend returns only reply
-            _history.add({
-              "role": "user",
-              "parts": [
-                {"text": text},
-              ],
-            });
-            _history.add({
-              "role": "model",
-              "parts": [
-                {"text": replyText},
-              ],
-            });
+          // Fallback history update if backend returns only reply
+          _history.add({
+            "role": "user",
+            "parts": [
+              {"text": text},
+            ],
+          });
+          _history.add({
+            "role": "model",
+            "parts": [
+              {"text": replyText},
+            ],
+          });
         }
 
         await _saveHistory();
 
+        final String callTarget = reply['call_target'] ?? "";
+
         return {
           "text": replyText,
           "emotion": emotion,
-          "action": action
+          "action": action,
+          "call_target": callTarget,
         };
       } else {
         debugPrint("API Error: ${response.statusCode} - ${response.body}");
-        return {"text": "通信エラーが発生しました(コード${response.statusCode})。", "emotion": "default", "action": "none"};
+        return {
+          "text": "通信エラーが発生しました(コード${response.statusCode})。",
+          "emotion": "default",
+          "action": "none",
+        };
       }
     } catch (e) {
       debugPrint(e.toString());
-      return {"text": "アプリ内部エラーが発生しました。", "emotion": "default", "action": "none"};
+      return {
+        "text": "アプリ内部エラーが発生しました。",
+        "emotion": "default",
+        "action": "none",
+      };
     }
   }
 
@@ -143,5 +181,43 @@ class AiService extends ChangeNotifier {
     _prefs?.remove(_historyKey);
     _history.clear();
     notifyListeners();
+  }
+
+  /// Fetch the latest financial analysis from the backend.
+  /// Returns null if no analysis is available.
+  Future<Map<String, dynamic>?> fetchLatestAnalysis() async {
+    if (currentBackendUrl == null) return null;
+
+    try {
+      String targetUrl = currentBackendUrl!.trim();
+      if (!targetUrl.startsWith('http')) {
+        targetUrl = 'https://$targetUrl';
+      } else if (targetUrl.startsWith('http://') &&
+          !targetUrl.contains('10.0.2.2') &&
+          !targetUrl.contains('localhost') &&
+          !targetUrl.contains('192.168.')) {
+        targetUrl = targetUrl.replaceFirst('http://', 'https://');
+      }
+      if (targetUrl.endsWith('/')) {
+        targetUrl = targetUrl.substring(0, targetUrl.length - 1);
+      }
+      // Remove /chat suffix if present to get base URL
+      if (targetUrl.endsWith('/chat')) {
+        targetUrl = targetUrl.substring(0, targetUrl.length - 5);
+      }
+
+      final url = Uri.parse('$targetUrl/finance/latest');
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        if (data['status'] == 'ok' && data['analysis'] != null) {
+          return data['analysis'] as Map<String, dynamic>;
+        }
+      }
+    } catch (e) {
+      print('AiService: Error fetching financial analysis: $e');
+    }
+    return null;
   }
 }

@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-03-06T20:36:12.779449",
+  "speech_summary": "ニュース分析でエラーが発生しました。次のサイクルで再試行します。",
+  "market_sentiment": "neutral",
+  "predictions": [],
+  "risk_factors": [
+    "分析エラー"
+  ],
+  "error": "400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'API key not valid. Please pass a valid API key.', 'status': 'INVALID_ARGUMENT', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'API_KEY_INVALID', 'domain': 'googleapis.com', 'metadata': {'service': 'generativelanguage.googleapis.com'}}, {'@type': 'type.googleapis.com/google.rpc.LocalizedMessage', 'locale': 'en-US', 'message': 'API key not valid. Please pass a valid API key.'}]}}"
+}

@@ -24,7 +24,8 @@ LEARNING_NOTES_PATH = DATA_DIR / "learning_notes.json"
 ANALYSES_DIR.mkdir(parents=True, exist_ok=True)
 
 # Gemini client
-genai_client = genai.Client()
+import os
+genai_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 ANALYSIS_PROMPT = """
 あなたは金融市場の専門アナリストです。以下のニュースを分析し、JSON形式で結果を出力してください。

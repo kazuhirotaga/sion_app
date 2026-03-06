@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/ai_service.dart';
+import '../services/contact_service.dart';
+import '../services/vision_service.dart';
 import '../services/voice_service.dart';
 
 class EyesScreen extends StatefulWidget {
@@ -20,7 +22,9 @@ class _EyesScreenState extends State<EyesScreen> with TickerProviderStateMixin {
   double _lookY = 0.0;
 
   Timer? _behaviorTimer;
+  Timer? _financeTimer;
   final Random _random = Random();
+  String? _lastFinanceTimestamp;
 
   bool _isProcessingAi = false;
 
@@ -37,6 +41,7 @@ class _EyesScreenState extends State<EyesScreen> with TickerProviderStateMixin {
     );
 
     _startBehaviorLoop();
+    _startFinancePolling();
   }
 
   void _startBehaviorLoop() {
@@ -87,7 +92,11 @@ class _EyesScreenState extends State<EyesScreen> with TickerProviderStateMixin {
     }
   }
 
-  void _onMicPressed(VoiceService voiceService, AiService aiService) async {
+  void _onMicPressed(
+    VoiceService voiceService,
+    AiService aiService,
+    VisionService visionService,
+  ) async {
     if (voiceService.isListening) {
       await voiceService.stopListening();
     } else {
@@ -104,11 +113,15 @@ class _EyesScreenState extends State<EyesScreen> with TickerProviderStateMixin {
 
           final response = await aiService.sendMessage(text);
 
+          // Check action type BEFORE setState
+          final String action = response['action'] as String? ?? 'none';
+          final bool isCaptureImage = (action == 'capture_image');
+          final bool isMakeCall = (action == 'make_call');
+
           setState(() {
             _isProcessingAi = false;
 
             // アクションに基づく簡易的な目の動き
-            final String action = response['action'] as String? ?? 'none';
             if (action == 'nod') {
               _lookY = 0.5; // 下を見る
             } else if (action == 'shake') {
@@ -122,27 +135,140 @@ class _EyesScreenState extends State<EyesScreen> with TickerProviderStateMixin {
             }
           });
 
-          // 発話
-          final String replyText = response['text'] as String? ?? "";
-          if (replyText.isNotEmpty) {
-            await voiceService.speak(replyText);
+          if (isCaptureImage) {
+            // Handle image capture OUTSIDE setState so async/await works properly
+            final String introText = response['text'] as String? ?? "";
+            await _handleImageCapture(
+              visionService,
+              aiService,
+              voiceService,
+              introText,
+            );
+          } else if (isMakeCall) {
+            // Handle phone call OUTSIDE setState
+            final String introText = response['text'] as String? ?? "";
+            final String callTarget = response['call_target'] as String? ?? "";
+            final contactService = context.read<ContactService>();
+            await _handleMakeCall(
+              contactService,
+              voiceService,
+              introText,
+              callTarget,
+            );
+          } else {
+            // 発話 (通常のアクション)
+            final String replyText = response['text'] as String? ?? "";
+            if (replyText.isNotEmpty) {
+              await voiceService.speak(replyText);
+            }
           }
         },
       );
     }
   }
 
-  @override
-  void dispose() {
-    _behaviorTimer?.cancel();
-    _blinkController.dispose();
-    super.dispose();
+  Future<void> _handleMakeCall(
+    ContactService contactService,
+    VoiceService voiceService,
+    String introText,
+    String callTarget,
+  ) async {
+    print("EyesScreen: _handleMakeCall START, target='$callTarget'");
+    if (!mounted) return;
+
+    // Speak the intro (e.g., "お母さんに電話しますね")
+    if (introText.isNotEmpty) {
+      await voiceService.speak(introText);
+    }
+
+    if (callTarget.isEmpty) {
+      await voiceService.speak("電話する相手の名前が分かりませんでした。");
+      return;
+    }
+
+    // Search contact
+    final contact = await contactService.searchContact(callTarget);
+    if (contact != null) {
+      final name = contact['name']!;
+      final phone = contact['phone']!;
+      await voiceService.speak("$nameさんに電話をかけます。");
+      await contactService.makeCall(phone);
+    } else {
+      await voiceService.speak("$callTargetさんの連絡先が見つかりませんでした。");
+    }
+    print("EyesScreen: _handleMakeCall END");
+  }
+
+  Future<void> _handleImageCapture(
+    VisionService visionService,
+    AiService aiService,
+    VoiceService voiceService,
+    String introText,
+  ) async {
+    print("EyesScreen: _handleImageCapture START");
+    if (!mounted) return;
+
+    if (introText.isNotEmpty) {
+      await voiceService.speak(introText);
+    }
+
+    // Capture image
+    print("EyesScreen: Calling visionService.captureImageBase64...");
+    String base64Image;
+    try {
+      base64Image = await visionService.captureImageBase64();
+    } catch (e) {
+      print("EyesScreen Capture Error: $e");
+      // Read the error directly through TTS so the user can hear the exact exception!
+      await voiceService.speak("キャプチャーエラー。$e");
+
+      // Tell the AI that it failed so it can apologize via text/history
+      await aiService.sendMessage("システムエラー：$e");
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isProcessingAi = true;
+      _lookX = 0.0;
+      _lookY = -0.5;
+    });
+    // Send the image directly back to AI
+    print("EyesScreen: Sending image to AI Backend...");
+    final response = await aiService.sendMessage(
+      "画像を取得しました。",
+      imageBase64: base64Image,
+    );
+    print("EyesScreen: Received response from AI Backend.");
+
+    if (!mounted) return;
+    setState(() {
+      _isProcessingAi = false;
+      final String action = response['action'] as String? ?? 'none';
+      if (action == 'nod') {
+        _lookY = 0.5;
+      } else if (action == 'shake') {
+        _lookX = 0.5;
+      } else {
+        _lookX = 0.0;
+        _lookY = 0.0;
+      }
+    });
+
+    final String replyText = response['text'] as String? ?? "";
+    if (replyText.isNotEmpty) {
+      print("EyesScreen: Speaking reply '$replyText'");
+      await voiceService.speak(replyText);
+    }
+
+    print("EyesScreen: _handleImageCapture END");
   }
 
   @override
   Widget build(BuildContext context) {
     final voiceService = context.watch<VoiceService>();
     final aiService = context.read<AiService>();
+    final visionService = context.read<VisionService>();
 
     // Determine eye color and shape based on state
     Color eyeColor = Colors.cyan;
@@ -202,7 +328,8 @@ class _EyesScreenState extends State<EyesScreen> with TickerProviderStateMixin {
                   backgroundColor: voiceService.isListening
                       ? Colors.green
                       : Colors.cyan.withOpacity(0.3),
-                  onPressed: () => _onMicPressed(voiceService, aiService),
+                  onPressed: () =>
+                      _onMicPressed(voiceService, aiService, visionService),
                   child: Icon(
                     voiceService.isListening ? Icons.mic : Icons.mic_none,
                     color: Colors.white,
@@ -259,5 +386,55 @@ class _EyesScreenState extends State<EyesScreen> with TickerProviderStateMixin {
         ),
       ),
     );
+  }
+
+  void _startFinancePolling() {
+    // Poll every 10 minutes for new financial analysis
+    _financeTimer = Timer.periodic(const Duration(minutes: 10), (_) {
+      _pollFinanceAnalysis();
+    });
+    // Also poll once shortly after startup (30 seconds delay)
+    Future.delayed(const Duration(seconds: 30), () {
+      if (mounted) _pollFinanceAnalysis();
+    });
+  }
+
+  Future<void> _pollFinanceAnalysis() async {
+    if (!mounted) return;
+    // Skip if user is speaking or AI is processing
+    final voiceService = context.read<VoiceService>();
+    final aiService = context.read<AiService>();
+    if (_isProcessingAi ||
+        voiceService.isListening ||
+        voiceService.isSpeaking) {
+      print("EyesScreen: Skipping finance poll (busy)");
+      return;
+    }
+
+    try {
+      final analysis = await aiService.fetchLatestAnalysis();
+      if (analysis == null) return;
+
+      final timestamp = analysis['timestamp'] as String? ?? '';
+      if (timestamp == _lastFinanceTimestamp) return; // Already announced
+
+      _lastFinanceTimestamp = timestamp;
+      final speechSummary = analysis['speech_summary'] as String? ?? '';
+      if (speechSummary.isEmpty) return;
+
+      print("EyesScreen: Announcing finance report: $speechSummary");
+      if (!mounted) return;
+      await voiceService.speak("市場レポートです。$speechSummary");
+    } catch (e) {
+      print("EyesScreen: Finance poll error: $e");
+    }
+  }
+
+  @override
+  void dispose() {
+    _blinkController.dispose();
+    _behaviorTimer?.cancel();
+    _financeTimer?.cancel();
+    super.dispose();
   }
 }

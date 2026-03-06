@@ -5,6 +5,7 @@ import 'ui/eyes_screen.dart';
 import 'services/ai_service.dart';
 import 'services/voice_service.dart';
 import 'services/vision_service.dart';
+import 'services/contact_service.dart';
 import 'services/ble_service.dart';
 
 void main() async {
@@ -15,6 +16,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => AiService()),
         ChangeNotifierProvider(create: (_) => VoiceService()),
         ChangeNotifierProvider(create: (_) => VisionService()),
+        ChangeNotifierProvider(create: (_) => ContactService()),
         ChangeNotifierProvider(create: (_) => BleService()),
       ],
       child: const ShionApp(),
@@ -75,7 +77,12 @@ class _BootScreenState extends State<BootScreen> {
       Permission.bluetoothScan,
       Permission.bluetoothConnect,
       Permission.location,
+      Permission.contacts,
     ].request();
+
+    setState(() => _status = "INITIALIZING VISION...");
+    final visionService = context.read<VisionService>();
+    await visionService.initialize();
 
     if (!aiService.hasBackendUrl) {
       setState(() {

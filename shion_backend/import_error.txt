@@ -1,0 +1,26 @@
+Traceback (most recent call last):
+  File "C:\Users\ikaru\Desktop\sion_app\shion_backend\test_fa.py", line 3, in <module>
+    from financial_analyst import run_analysis_cycle
+  File "C:\Users\ikaru\Desktop\sion_app\shion_backend\financial_analyst.py", line 27, in <module>
+    genai_client = genai.Client()
+  File "C:\Users\ikaru\AppData\Roaming\Python\Python313\site-packages\google\genai\client.py", line 213, in __init__
+    self._api_client = self._get_api_client(
+                       ~~~~~~~~~~~~~~~~~~~~^
+        vertexai=vertexai,
+        ^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        http_options=http_options,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\ikaru\AppData\Roaming\Python\Python313\site-packages\google\genai\client.py", line 258, in _get_api_client
+    return BaseApiClient(
+        vertexai=vertexai,
+    ...<4 lines>...
+        http_options=http_options,
+    )
+  File "C:\Users\ikaru\AppData\Roaming\Python\Python313\site-packages\google\genai\_api_client.py", line 409, in __init__
+    raise ValueError(
+    ...<3 lines>...
+    )
+ValueError: Missing key inputs argument! To use the Google AI API, provide (`api_key`) arguments. To use the Google Cloud API, provide (`vertexai`, `project` & `location`) arguments.
