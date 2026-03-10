@@ -22,17 +22,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"FinancialAnalyst: Initial analysis failed: {e}")
     
-    # Schedule every 10 minutes
+    # Schedule every 3 minutes
     scheduler.add_job(
         run_analysis_cycle,
-        trigger=IntervalTrigger(minutes=10),
+        trigger=IntervalTrigger(minutes=3),
         id="financial_analysis",
         replace_existing=True,
         misfire_grace_time=300,
         coalesce=True,
     )
     scheduler.start()
-    print("FinancialAnalyst: Scheduler started (every 10 minutes)")
+    print("FinancialAnalyst: Scheduler started (every 3 minutes)")
     
     yield
     
