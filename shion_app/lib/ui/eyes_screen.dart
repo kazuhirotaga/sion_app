@@ -389,8 +389,8 @@ class _EyesScreenState extends State<EyesScreen> with TickerProviderStateMixin {
   }
 
   void _startFinancePolling() {
-    // Poll every 10 minutes for new financial analysis
-    _financeTimer = Timer.periodic(const Duration(minutes: 10), (_) {
+    // Poll every 3 minutes for new financial analysis
+    _financeTimer = Timer.periodic(const Duration(minutes: 3), (_) {
       _pollFinanceAnalysis();
     });
     // Also poll once shortly after startup (30 seconds delay)
