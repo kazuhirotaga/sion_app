@@ -61,6 +61,14 @@ async def list_tools() -> list[types.Tool]:
                 },
                 "required": ["query"]
             }
+        ),
+        types.Tool(
+            name="get_financial_report",
+            description="最新の金融市場分析レポートを取得します。日経平均や為替、おすすめ銘柄などの情報を網羅しています。",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            }
         )
     ]
 
@@ -186,6 +194,36 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 return [types.TextContent(type="text", text=result_text)]
         except Exception as e:
             return [types.TextContent(type="text", text=f"場所検索エラー: {str(e)}")]
+
+    elif name == "get_financial_report":
+        try:
+            from financial_analyst import get_latest_analysis
+            analysis = get_latest_analysis()
+            if not analysis:
+                return [types.TextContent(type="text", text="現在利用可能な市場レポートはありません。")]
+            
+            # Format the analysis into a readable string for Gemini
+            report = f"【最新市場レポート ({analysis.get('timestamp')})】\n"
+            report += f"要約: {analysis.get('speech_summary')}\n"
+            report += f"市場センチメント: {analysis.get('market_sentiment')}\n"
+            
+            # Add predictions
+            preds = analysis.get('predictions', [])
+            if preds:
+                report += "\n【予測】\n"
+                for p in preds:
+                    report += f"- {p.get('target')}: {p.get('direction')} (信頼度: {p.get('confidence')}) - {p.get('reasoning')}\n"
+            
+            # Add recommended stocks
+            stocks = analysis.get('recommended_stocks', [])
+            if stocks:
+                report += "\n【おすすめ銘柄】\n"
+                for s in stocks:
+                    report += f"- {s.get('name')} ({s.get('ticker')}): {s.get('reasoning')}\n"
+            
+            return [types.TextContent(type="text", text=report)]
+        except Exception as e:
+            return [types.TextContent(type="text", text=f"レポート取得エラー: {str(e)}")]
 
     else:
         raise ValueError(f"Unknown tool: {name}")
